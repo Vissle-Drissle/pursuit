@@ -11,6 +11,8 @@ cache = {
   "password": False
   }
 
+weight = [["5", 75], ["6", 75], ["7", 75], ["8", 75], ["16", 75], ["17", 75], ["18", 75], ["9", 95], ["11", 95], ["12", 95], ["13", 95], ["14", 95], ["15", 95], ["19", 110], ["23", 110], ["24", 110], ["25", 110], ["26", 110], ["28", 104], ["29", 104], ["30", 104], ["31", 104], ["32", 104], ["33", 104], ["35", 101], ["36", 101], ["37", 101], ["38", 101], ["39", 101], ["40", 101], ["41", 101], ["42", 101], ["43", 101], ["44", 101], ["45", 101], ["46", 101], ["47", 101], ["48", 101], ["49", 101], ["50", 101], ["52", 110], ["53", 110], ["55", 110], ["57", 110], ["58", 110], ["59", 110], ["60", 110], ["61", 110], ["62", 110], ["63", 110], ["64", 110], ["65", 110], ["66", 110], ["68", 95], ["71", 116], ["72", 116], ["73", 116], ["74", 116], ["75", 116], ["76", 116], ["77", 116], ["78", 116], ["79", 116], ["80", 116], ["81", 116], ["82", 116], ["83", 116], ["84", 116]]
+
 """ Function to generate a randomized account """
 def generate():
     email = "".join([random.choice(string.ascii_lowercase) for x in range(6)])
@@ -19,6 +21,17 @@ def generate():
     data = requests.post("https://chatango.com/signupdir", data={"email": f"{random.randint(0, 99999999)}@{random.randint(0, 99999999)}.{email}", "login": cache["username"], "password": cache["password"], "password_confirm": cache["password"], "storecookie": "on", "checkerrors": "yes"}).text
     if "Download Message Catcher" in data: return True
     else: return False
+
+""" Get the WebSocket server for a group """
+def server(data):
+    try:
+      data = re.sub("-|_", "q", data)
+      length = max(int(data[6:9] or "0", 36), 1000)
+      position, total, serve = (int(data[0:5], 36) % length) / length, sum(x[1] for x in weight), 0
+      for x in weight:
+        serve += float(x[1] / total)
+        if position <= serve: return f"wss://s{x[0]}.chatango.com:8081/"
+    except Exception as error: return False
 
 """ The authentication token of the account used to log in to private messages """
 def token(username, password):
@@ -46,6 +59,24 @@ def convert(data, state=False):
     if minutes > 0: string += f"{minutes}" + (" minute" if minutes == 1 else " minutes") + (" and " if seconds > 0 else "")
     if seconds > 0: string += f"{seconds}" + (" second" if seconds == 1 else " seconds")
     if string: return string
+
+""" Function to connect to a group to get the owner of """
+async def group(data):
+  try:
+    async with websockets.connect(f"{server(data)}", origin="https://st.chatango.com", ping_interval=None, ping_timeout=None) as client:
+      await client.send(f"bauth:{data}:{random.randint(1, 10 ** 16)}::\x00")
+      while True:
+        frame = await client.recv()
+        capture = frame.split(":")
+        command, handle = capture[0], capture[1:]
+        if command:
+          if command == "ok":
+            await client.close()
+            return handle
+          else:
+            await client.close()
+            return False
+  except Exception as error: return False
 
 """ Function to log in to private messages using the details randomized or provided to check an account """
 async def private(data):
@@ -75,7 +106,10 @@ async def private(data):
                 track = convert(time.time() + int(handle[1]) * 60, True)
                 print(f"{data.capitalize()} is online but has been idle for {track}.")
               elif status == "app": print(f"{data.capitalize()} is online from the mobile app.")
-              elif status == "invalid": print(f"{data.capitalize()} does not exist or is a group.")
+              elif status == "invalid":
+                check = await group(data)
+                if check: print(f"{data.capitalize()} is a group and the owner is {check[0].capitalize()}.")
+                else: print(f"{data.capitalize()} does not exist.")
               else: print(f"{data.capitalize()} is online.")
               await client.close()
     except websockets.exceptions.ConnectionClosedError: pass
