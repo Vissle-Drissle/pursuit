@@ -1,5 +1,6 @@
 # Pursuit
 Pursuit is a script for Chatango that checks the activity status of an account and returns whether if it is online, idle, on mobile or offline.
+Displays the owner of the group if the input is not an account.
 
 ## Usage
 
